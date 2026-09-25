@@ -1,4 +1,4 @@
-import type { SmellMemory } from './constants';
+import type { SmellMemory, RelationType } from './constants';
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
@@ -14,10 +14,27 @@ export function formatDate(iso: string): string {
   return `${y}.${m}.${day} ${hh}:${mm}`;
 }
 
+type RelationSubject = Pick<SmellMemory, 'smell_type' | 'season' | 'emotion'>;
+
+// 关系规则：相似=气味类型一致，延续=季节相同，反差=情绪不同
+export function validateRelation(a: RelationSubject, b: RelationSubject, type: RelationType): string | null {
+  if (type === 'similar' && a.smell_type !== b.smell_type) {
+    return '「相似」要求两段记忆的气味类型一致';
+  }
+  if (type === 'continuation' && a.season !== b.season) {
+    return '「延续」要求两段记忆的季节相同';
+  }
+  if (type === 'contrast' && a.emotion === b.emotion) {
+    return '「反差」要求两段记忆的情绪不同';
+  }
+  return null;
+}
+
 export interface Filters {
   smellType: string;
   season: string;
   emotion: string;
+  linkedOnly: boolean;
 }
 
 export function filterMemories(memories: SmellMemory[], filters: Filters): SmellMemory[] {
@@ -25,8 +42,26 @@ export function filterMemories(memories: SmellMemory[], filters: Filters): Smell
     if (filters.smellType && m.smell_type !== filters.smellType) return false;
     if (filters.season && m.season !== filters.season) return false;
     if (filters.emotion && m.emotion !== filters.emotion) return false;
+    if (filters.linkedOnly && (m.relations?.length ?? 0) === 0) return false;
     return true;
   });
+}
+
+export interface RelationCounts {
+  similar: number;
+  continuation: number;
+  contrast: number;
+}
+
+// 关系在双方卡片上各存一份，计数时按 id 排序去重，每条只算一次
+export function getRelationCounts(memories: SmellMemory[]): RelationCounts {
+  const counts: RelationCounts = { similar: 0, continuation: 0, contrast: 0 };
+  for (const m of memories) {
+    for (const r of m.relations ?? []) {
+      if (m.id < r.targetId) counts[r.type] += 1;
+    }
+  }
+  return counts;
 }
 
 export interface IntensityDistribution {

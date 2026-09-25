@@ -6,8 +6,8 @@ import MemoryCard from '../components/MemoryCard';
 import MemoryModal from '../components/MemoryModal';
 import { useMemoryStore } from '../store/memoryStore';
 import type { Filters } from '../utils/helpers';
-import { filterMemories } from '../utils/helpers';
-import type { SmellMemory } from '../utils/constants';
+import { filterMemories, getRelationCounts } from '../utils/helpers';
+import type { SmellMemory, MemoryRelation } from '../utils/constants';
 import type { MemoryInput } from '../store/memoryStore';
 import { BookOpenCheck } from 'lucide-react';
 
@@ -15,6 +15,7 @@ const defaultFilters: Filters = {
   smellType: '',
   season: '',
   emotion: '',
+  linkedOnly: false,
 };
 
 export default function Home() {
@@ -33,7 +34,11 @@ export default function Home() {
     [memories, filters],
   );
 
-  const handleFilterChange = (key: keyof Filters, value: string) => {
+  const relationCounts = useMemo(() => getRelationCounts(memories), [memories]);
+
+  const hasActiveFilter = !!(filters.smellType || filters.season || filters.emotion || filters.linkedOnly);
+
+  const handleFilterChange = (key: keyof Filters, value: string | boolean) => {
     setFilters((f) => ({ ...f, [key]: value }));
   };
   const resetFilters = () => setFilters(defaultFilters);
@@ -41,12 +46,11 @@ export default function Home() {
   const openAddModal = () => { setEditing(null); setModalOpen(true); };
   const openEditModal = (m: SmellMemory) => { setEditing(m); setModalOpen(true); };
 
-  const handleSubmit = (data: MemoryInput) => {
-    if (editing) {
-      updateMemory(editing.id, data);
-    } else {
-      addMemory(data);
-    }
+  const handleSubmit = (data: MemoryInput, relations: MemoryRelation[]): string | null => {
+    const res = editing
+      ? updateMemory(editing.id, data, relations)
+      : addMemory(data, relations);
+    return res.ok ? null : res.error ?? '关联不符合规则';
   };
 
   const handleDelete = (id: string) => {
@@ -76,6 +80,7 @@ export default function Home() {
           onChange={handleFilterChange}
           onReset={resetFilters}
           resultCount={filteredMemories.length}
+          relationCounts={relationCounts}
         />
 
         <VisualizationPanel memories={filteredMemories} onSelect={scrollToCard} />
@@ -95,12 +100,12 @@ export default function Home() {
             <div className="bg-paper-50/70 backdrop-blur rounded-3xl border-2 border-dashed border-paper-400 py-20 text-center">
               <div className="text-6xl mb-4 select-none">🍂</div>
               <h3 className="font-serif text-2xl text-ink-800 mb-2">
-                {(filters.smellType || filters.season || filters.emotion)
+                {hasActiveFilter
                   ? '没有匹配的气味记忆'
                   : '还没有封存任何气味'}
               </h3>
               <p className="text-ink-700/60 max-w-md mx-auto mb-6">
-                {(filters.smellType || filters.season || filters.emotion)
+                {hasActiveFilter
                   ? '换一组筛选条件试试？或者先封存一段新的气味'
                   : '空气中一定有让你难忘的味道——无论是衣柜里的樟木香，还是雨后操场的青草气'}
               </p>
@@ -108,7 +113,7 @@ export default function Home() {
                 <button onClick={openAddModal} className="btn-primary">
                   封存第一段气味
                 </button>
-                {(filters.smellType || filters.season || filters.emotion) && (
+                {hasActiveFilter && (
                   <button onClick={resetFilters} className="btn-secondary">
                     清除筛选条件
                   </button>
@@ -123,9 +128,11 @@ export default function Home() {
                     memory={m}
                     index={idx}
                     isExpanded={expandedId === m.id}
+                    memories={memories}
                     onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                     onEdit={() => openEditModal(m)}
                     onDelete={() => handleDelete(m.id)}
+                    onSelectRelation={scrollToCard}
                   />
                 </div>
               ))}
@@ -143,6 +150,7 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         editingData={editing}
+        memories={memories}
       />
     </div>
   );

@@ -1,12 +1,13 @@
-import { RotateCcw } from 'lucide-react';
-import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
-import type { Filters } from '../utils/helpers';
+import { RotateCcw, Link2 } from 'lucide-react';
+import { SEASONS, SMELL_TYPES, EMOTIONS, RELATION_TYPES } from '../utils/constants';
+import type { Filters, RelationCounts } from '../utils/helpers';
 
 interface Props {
   filters: Filters;
-  onChange: (key: keyof Filters, value: string) => void;
+  onChange: (key: keyof Filters, value: string | boolean) => void;
   onReset: () => void;
   resultCount: number;
+  relationCounts: RelationCounts;
 }
 
 function makeSelectClass(active: boolean) {
@@ -17,8 +18,8 @@ function makeSelectClass(active: boolean) {
   }`;
 }
 
-export default function FilterPanel({ filters, onChange, onReset, resultCount }: Props) {
-  const hasFilter = filters.smellType || filters.season || filters.emotion;
+export default function FilterPanel({ filters, onChange, onReset, resultCount, relationCounts }: Props) {
+  const hasFilter = filters.smellType || filters.season || filters.emotion || filters.linkedOnly;
 
   return (
     <section className="container max-w-6xl mb-6">
@@ -89,6 +90,19 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
                 ))}
               </select>
             </div>
+
+            <button
+              onClick={() => onChange('linkedOnly', !filters.linkedOnly)}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 border text-sm font-medium transition-all duration-200 ${
+                filters.linkedOnly
+                  ? 'bg-lavender-500 text-paper-50 border-lavender-600 shadow-paper'
+                  : 'bg-paper-50 text-ink-800 border-paper-300 hover:bg-paper-100 hover:border-paper-400'
+              }`}
+              title="只显示已经和其它记忆建立关联的条目"
+            >
+              <Link2 className="w-4 h-4" />
+              只看有关联
+            </button>
           </div>
 
           <button
@@ -103,6 +117,22 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
             <RotateCcw className="w-4 h-4" />
             重置
           </button>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-paper-200 flex flex-wrap items-center gap-2">
+          <span className="font-hand text-lg text-lavender-600 mr-1">关系网</span>
+          {RELATION_TYPES.map((t) => (
+            <span
+              key={t.value}
+              className={`scent-tag ${t.bg} ${t.text}`}
+              title={`${t.label}：要求双方${t.rule}`}
+            >
+              {t.emoji} {t.label} · {relationCounts[t.value]}
+            </span>
+          ))}
+          <span className="text-[11px] text-ink-700/45 ml-auto">
+            编辑卡片即可把两段记忆连起来
+          </span>
         </div>
       </div>
     </section>

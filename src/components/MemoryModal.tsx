@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import type { SmellMemory, Season, SmellType, Emotion } from '../utils/constants';
-import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
+import { X, Plus, Trash2 } from 'lucide-react';
+import type { SmellMemory, Season, SmellType, Emotion, MemoryRelation, RelationType } from '../utils/constants';
+import { SEASONS, SMELL_TYPES, EMOTIONS, RELATION_TYPES, MAX_RELATIONS, getSeasonInfo, getSmellTypeInfo, getEmotionInfo, getRelationTypeInfo } from '../utils/constants';
+import { validateRelation } from '../utils/helpers';
 import type { MemoryInput } from '../store/memoryStore';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: MemoryInput) => void;
+  onSubmit: (data: MemoryInput, relations: MemoryRelation[]) => string | null;
   editingData: SmellMemory | null;
+  memories: SmellMemory[];
 }
 
 const defaultForm: MemoryInput = {
@@ -27,19 +29,24 @@ const defaultForm: MemoryInput = {
 const intensityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const humidityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: Props) {
+export default function MemoryModal({ isOpen, onClose, onSubmit, editingData, memories }: Props) {
   const [form, setForm] = useState<MemoryInput>(defaultForm);
+  const [relations, setRelations] = useState<MemoryRelation[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       if (editingData) {
-        const { id, created_at, updated_at, ...rest } = editingData;
+        const { id, created_at, updated_at, relations: existing, ...rest } = editingData;
         void id; void created_at; void updated_at;
         setForm(rest);
+        setRelations(existing ?? []);
       } else {
         setForm(defaultForm);
+        setRelations([]);
       }
+      setSubmitError(null);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -55,12 +62,51 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
 
   const update = <K extends keyof MemoryInput>(key: K, value: MemoryInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
+    setSubmitError(null);
+  };
+
+  // 可被关联的目标：排除自己，以及已被其它行选中的记忆
+  const availableTargets = (exceptTargetId?: string) =>
+    memories.filter(
+      (m) =>
+        m.id !== editingData?.id &&
+        (m.id === exceptTargetId || !relations.some((r) => r.targetId === m.id)),
+    );
+
+  const updateRelations = (next: MemoryRelation[]) => {
+    setRelations(next);
+    setSubmitError(null);
+  };
+
+  const addRelation = () => {
+    const target = availableTargets()[0];
+    if (!target || relations.length >= MAX_RELATIONS) return;
+    // 默认选中第一条符合规则的关系类型，都不符合时退回到「相似」并提示
+    const fit = RELATION_TYPES.find((t) => !validateRelation(form, target, t.value));
+    updateRelations([...relations, { targetId: target.id, type: fit?.value ?? 'similar' }]);
+  };
+
+  const setRelationTarget = (idx: number, targetId: string) => {
+    updateRelations(relations.map((r, i) => (i === idx ? { ...r, targetId } : r)));
+  };
+
+  const setRelationType = (idx: number, type: RelationType) => {
+    updateRelations(relations.map((r, i) => (i === idx ? { ...r, type } : r)));
+  };
+
+  const removeRelation = (idx: number) => {
+    updateRelations(relations.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.location.trim()) return;
-    onSubmit(form);
+    const error = onSubmit(form, relations);
+    if (error) {
+      // 保存失败：留在弹窗里提示，已有关系不会被改动
+      setSubmitError(error);
+      return;
+    }
     onClose();
   };
 
@@ -301,6 +347,98 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
               </div>
             </div>
           </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-paper-200">
+              <span className="w-1.5 h-6 bg-brick-400 rounded-full" />
+              <h3 className="font-hand text-xl text-brick-500">关系网</h3>
+              <span className="text-xs text-ink-700/50">可关联 1–{MAX_RELATIONS} 条已有记忆</span>
+            </div>
+
+            {relations.length === 0 ? (
+              <p className="text-sm text-ink-700/55">
+                还没有关联。如果这段气味和另一段记忆相似、延续或反差，把它们连起来吧。
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {relations.map((rel, idx) => {
+                  const target = memories.find((m) => m.id === rel.targetId);
+                  const ruleError = target ? validateRelation(form, target, rel.type) : null;
+                  const typeInfo = getRelationTypeInfo(rel.type);
+                  return (
+                    <div
+                      key={rel.targetId}
+                      className={`p-3 rounded-xl border bg-paper-100/70 ${
+                        ruleError ? 'border-brick-400/50' : 'border-paper-200'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                        <select
+                          value={rel.targetId}
+                          onChange={(e) => setRelationTarget(idx, e.target.value)}
+                          className="scent-select scent-input flex-1 min-w-0 !py-2 text-sm"
+                        >
+                          {availableTargets(rel.targetId).map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.location}（{getSeasonInfo(m.season).label} · {getSmellTypeInfo(m.smell_type).label} · {getEmotionInfo(m.emotion).label}）
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {RELATION_TYPES.map((t) => (
+                            <button
+                              key={t.value}
+                              type="button"
+                              title={`${t.label}：要求${t.rule}`}
+                              onClick={() => setRelationType(idx, t.value)}
+                              className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 inline-flex items-center gap-1 ${
+                                rel.type === t.value
+                                  ? `${t.bg} ${t.text} ring-2 ring-offset-1 ring-offset-paper-50 ring-ochre-300`
+                                  : 'bg-paper-50 text-ink-700/60 hover:bg-paper-200 border border-paper-200'
+                              }`}
+                            >
+                              <span>{t.emoji}</span>
+                              <span>{t.label}</span>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => removeRelation(idx)}
+                            className="p-1.5 rounded-lg text-brick-500 hover:bg-brick-500/10 transition-colors"
+                            title="移除这条关联"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className={`mt-2 text-xs ${ruleError ? 'text-brick-600 font-medium' : 'text-ink-700/50'}`}>
+                        {ruleError
+                          ? `⚠️ ${ruleError}，保存将会失败`
+                          : `✓ 符合「${typeInfo.label}」规则：双方${typeInfo.rule}`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {relations.length < MAX_RELATIONS && availableTargets().length > 0 && (
+              <button
+                type="button"
+                onClick={addRelation}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-paper-100 text-ochre-600 border border-dashed border-ochre-300 hover:bg-ochre-100 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                添加关联（{relations.length}/{MAX_RELATIONS}）
+              </button>
+            )}
+          </div>
+
+          {submitError && (
+            <div className="px-4 py-3 rounded-xl bg-brick-400/10 border border-brick-400/40 text-sm text-brick-600 font-medium">
+              保存失败：{submitError}。请调整关联或修改本卡的属性后再试，已有关系不会被改动。
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-paper-200">
             <button type="button" onClick={onClose} className="btn-secondary">

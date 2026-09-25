@@ -1,21 +1,24 @@
 import type { SmellMemory } from '../utils/constants';
-import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
+import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo, getRelationTypeInfo } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, Link2 } from 'lucide-react';
 
 interface Props {
   memory: SmellMemory;
   index: number;
   isExpanded: boolean;
+  memories: SmellMemory[];
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSelectRelation: (id: string) => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({ memory, index, isExpanded, memories, onToggle, onEdit, onDelete, onSelectRelation }: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
+  const relations = memory.relations ?? [];
 
   const intensityWidth = `${memory.intensity * 10}%`;
   const humidityWidth = `${memory.humidity * 10}%`;
@@ -77,6 +80,11 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
               {memory.want_again && (
                 <span className="scent-tag bg-moss-100 text-moss-600">
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
+                </span>
+              )}
+              {relations.length > 0 && (
+                <span className="scent-tag bg-lavender-300/40 text-lavender-600">
+                  <Link2 className="w-3 h-3" /> {relations.length} 条关联
                 </span>
               )}
             </div>
@@ -141,6 +149,41 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   {memory.memory_text}
                 </p>
               </div>
+              {relations.length > 0 && (
+                <div className="mt-3 p-4 rounded-xl bg-paper-100/70 border border-paper-200/80">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Link2 className="w-4 h-4 text-lavender-600" />
+                    <span className="font-hand text-lg text-lavender-600">关系网</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {relations.map((rel) => {
+                      const target = memories.find((m) => m.id === rel.targetId);
+                      if (!target) return null;
+                      const info = getRelationTypeInfo(rel.type);
+                      return (
+                        <button
+                          key={rel.targetId}
+                          onClick={(e) => { e.stopPropagation(); onSelectRelation(rel.targetId); }}
+                          className="flex items-center gap-2.5 text-left px-3 py-2 rounded-xl bg-paper-50 border border-paper-200 hover:border-lavender-400 hover:shadow-paper transition-all duration-200 group/rel"
+                          title={`跳转到「${target.location}」`}
+                        >
+                          <span className={`scent-tag shrink-0 ${info.bg} ${info.text}`}>
+                            {info.emoji} {info.label}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block font-serif text-sm font-semibold text-ink-800 truncate group-hover/rel:text-lavender-600 transition-colors">
+                              {target.location}
+                            </span>
+                            <span className="block text-[11px] text-ink-700/55 truncate">
+                              {target.source_guess}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="mt-3 flex items-center justify-between pt-2 border-t border-paper-200/60">
                 <div className="flex items-center gap-1.5 text-[11px] text-ink-700/50">
                   <span>更新于 {formatDate(memory.updated_at)}</span>
