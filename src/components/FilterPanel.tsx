@@ -1,12 +1,15 @@
-import { RotateCcw } from 'lucide-react';
-import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
+import { RotateCcw, Link2 } from 'lucide-react';
+import { SEASONS, SMELL_TYPES, EMOTIONS, RELATION_TYPES } from '../utils/constants';
+import type { RelationType } from '../utils/constants';
 import type { Filters } from '../utils/helpers';
+import { hasActiveFilters } from '../utils/helpers';
 
 interface Props {
   filters: Filters;
   onChange: (key: keyof Filters, value: string) => void;
   onReset: () => void;
   resultCount: number;
+  relationCounts: Record<RelationType, number>;
 }
 
 function makeSelectClass(active: boolean) {
@@ -17,8 +20,8 @@ function makeSelectClass(active: boolean) {
   }`;
 }
 
-export default function FilterPanel({ filters, onChange, onReset, resultCount }: Props) {
-  const hasFilter = filters.smellType || filters.season || filters.emotion;
+export default function FilterPanel({ filters, onChange, onReset, resultCount, relationCounts }: Props) {
+  const hasFilter = hasActiveFilters(filters);
 
   return (
     <section className="container max-w-6xl mb-6">
@@ -88,6 +91,40 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="relative">
+              <select
+                value={filters.relation}
+                onChange={(e) => onChange('relation', e.target.value)}
+                className={`${makeSelectClass(!!filters.relation)} w-full sm:w-auto`}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${filters.relation ? 'FBF7EE' : '8B5A2B'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 12px center',
+                }}
+              >
+                <option value="">全部（含无关联）</option>
+                <option value="any">仅看有关联</option>
+                {RELATION_TYPES.map((t) => (
+                  <option key={t.value} value={t.value} className="bg-paper-50 text-ink-800">
+                    {t.emoji} 仅「{t.label}」关联
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-ink-700/60">
+              <Link2 className="w-3.5 h-3.5 text-lavender-600" />
+              <span>关系网：</span>
+              {RELATION_TYPES.map((t) => (
+                <span
+                  key={t.value}
+                  className="scent-tag bg-paper-100 border border-paper-200 text-ink-700/80"
+                  title={t.hint}
+                >
+                  {t.emoji} {t.label} <b className="text-ochre-600">{relationCounts[t.value]}</b>
+                </span>
+              ))}
             </div>
           </div>
 

@@ -1,6 +1,12 @@
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type SmellType = 'woody' | 'floral' | 'fruity' | 'earthy' | 'spicy' | 'sweet' | 'musty' | 'fresh' | 'burnt' | 'other';
 export type Emotion = 'warm' | 'nostalgic' | 'peaceful' | 'melancholy' | 'joyful' | 'uncomfortable' | 'surprising';
+export type RelationType = 'similar' | 'continuation' | 'contrast';
+
+export interface MemoryRelation {
+  target_id: string;
+  type: RelationType;
+}
 
 export interface SmellMemory {
   id: string;
@@ -14,6 +20,7 @@ export interface SmellMemory {
   color_association: string;
   emotion: Emotion;
   want_again: boolean;
+  relations: MemoryRelation[];
   created_at: string;
   updated_at: string;
 }
@@ -48,8 +55,13 @@ export const EMOTIONS: { value: Emotion; label: string; emoji: string; bg: strin
   { value: 'surprising', label: '惊喜', emoji: '✨', bg: 'bg-lavender-300/40', text: 'text-lavender-600' },
 ];
 
-export const HUMIDITY_LABELS: Record<number, string> = {
-  1: '极干',
+export const RELATION_TYPES: { value: RelationType; label: string; emoji: string; hint: string }[] = [
+  { value: 'similar', label: '相似', emoji: '🪞', hint: '气味类型一致' },
+  { value: 'continuation', label: '延续', emoji: '🍂', hint: '季节相同' },
+  { value: 'contrast', label: '反差', emoji: '⚡', hint: '情绪不同' },
+];
+
+export const HUMIDITY_LABELS: Record<number, string> = {  1: '极干',
   3: '偏干',
   5: '适中',
   7: '偏湿',
@@ -64,4 +76,7 @@ export function getSmellTypeInfo(t: SmellType) {
 }
 export function getEmotionInfo(e: Emotion) {
   return EMOTIONS.find(x => x.value === e)!;
+}
+export function getRelationTypeInfo(t: RelationType) {
+  return RELATION_TYPES.find(x => x.value === t)!;
 }

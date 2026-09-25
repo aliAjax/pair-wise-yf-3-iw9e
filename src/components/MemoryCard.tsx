@@ -1,18 +1,20 @@
 import type { SmellMemory } from '../utils/constants';
-import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
+import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo, getRelationTypeInfo } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, Link2 } from 'lucide-react';
 
 interface Props {
   memory: SmellMemory;
+  memories: SmellMemory[];
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onJump: (id: string) => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({ memory, memories, index, isExpanded, onToggle, onEdit, onDelete, onJump }: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
@@ -79,6 +81,11 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
                 </span>
               )}
+              {memory.relations.length > 0 && (
+                <span className="scent-tag bg-lavender-300/40 text-lavender-600">
+                  <Link2 className="w-3 h-3" /> {memory.relations.length} 条关联
+                </span>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -141,6 +148,40 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   {memory.memory_text}
                 </p>
               </div>
+              {memory.relations.length > 0 && (
+                <div className="mt-3 p-4 rounded-xl bg-paper-100/70 border border-paper-200/80">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link2 className="w-4 h-4 text-lavender-600" />
+                    <span className="font-hand text-lg text-lavender-600">关系网</span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {memory.relations.map((rel) => {
+                      const target = memories.find((m) => m.id === rel.target_id);
+                      if (!target) return null;
+                      const info = getRelationTypeInfo(rel.type);
+                      return (
+                        <li key={rel.target_id}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onJump(rel.target_id); }}
+                            className="w-full text-left inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-paper-50 border border-paper-200 hover:border-lavender-500/50 hover:bg-lavender-300/10 transition-colors group/rel"
+                            title={`${info.label}（${info.hint}）· 点击跳转到对方卡片`}
+                          >
+                            <span className="scent-tag bg-lavender-300/40 text-lavender-600 shrink-0">
+                              {info.emoji} {info.label}
+                            </span>
+                            <span className="flex-1 min-w-0 truncate text-sm text-ink-800 font-serif">
+                              {target.location}
+                            </span>
+                            <span className="text-[11px] text-ink-700/40 group-hover/rel:text-lavender-600 shrink-0">
+                              去看看 →
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
               <div className="mt-3 flex items-center justify-between pt-2 border-t border-paper-200/60">
                 <div className="flex items-center gap-1.5 text-[11px] text-ink-700/50">
                   <span>更新于 {formatDate(memory.updated_at)}</span>

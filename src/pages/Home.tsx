@@ -6,7 +6,7 @@ import MemoryCard from '../components/MemoryCard';
 import MemoryModal from '../components/MemoryModal';
 import { useMemoryStore } from '../store/memoryStore';
 import type { Filters } from '../utils/helpers';
-import { filterMemories } from '../utils/helpers';
+import { filterMemories, getRelationCounts, hasActiveFilters } from '../utils/helpers';
 import type { SmellMemory } from '../utils/constants';
 import type { MemoryInput } from '../store/memoryStore';
 import { BookOpenCheck } from 'lucide-react';
@@ -15,6 +15,7 @@ const defaultFilters: Filters = {
   smellType: '',
   season: '',
   emotion: '',
+  relation: '',
 };
 
 export default function Home() {
@@ -33,6 +34,8 @@ export default function Home() {
     [memories, filters],
   );
 
+  const relationCounts = useMemo(() => getRelationCounts(memories), [memories]);
+
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
   };
@@ -41,17 +44,19 @@ export default function Home() {
   const openAddModal = () => { setEditing(null); setModalOpen(true); };
   const openEditModal = (m: SmellMemory) => { setEditing(m); setModalOpen(true); };
 
-  const handleSubmit = (data: MemoryInput) => {
+  const handleSubmit = (data: MemoryInput): string | null => {
     if (editing) {
-      updateMemory(editing.id, data);
-    } else {
-      addMemory(data);
+      return updateMemory(editing.id, data);
     }
+    return addMemory(data);
   };
 
   const handleDelete = (id: string) => {
     const target = memories.find((m) => m.id === id);
-    const msg = `确认删除「${target?.location ?? '这段记忆'}」吗？`;
+    const linkedCount = target?.relations.length ?? 0;
+    const msg = linkedCount > 0
+      ? `确认删除「${target?.location ?? '这段记忆'}」吗？它身上的 ${linkedCount} 条关系也会从对方卡片上移除。`
+      : `确认删除「${target?.location ?? '这段记忆'}」吗？`;
     if (window.confirm(msg)) {
       deleteMemory(id);
       if (expandedId === id) setExpandedId(null);
@@ -59,12 +64,18 @@ export default function Home() {
   };
 
   const scrollToCard = (id: string) => {
+    // 目标卡片若被当前筛选挡住，先清掉筛选再跳过去
+    if (!filteredMemories.some((m) => m.id === id)) {
+      setFilters(defaultFilters);
+    }
     setExpandedId(id);
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-memory-id="${id}"]`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   };
+
+  const filtersActive = hasActiveFilters(filters);
 
   return (
     <div className="min-h-screen">
@@ -76,6 +87,7 @@ export default function Home() {
           onChange={handleFilterChange}
           onReset={resetFilters}
           resultCount={filteredMemories.length}
+          relationCounts={relationCounts}
         />
 
         <VisualizationPanel memories={filteredMemories} onSelect={scrollToCard} />
@@ -95,12 +107,12 @@ export default function Home() {
             <div className="bg-paper-50/70 backdrop-blur rounded-3xl border-2 border-dashed border-paper-400 py-20 text-center">
               <div className="text-6xl mb-4 select-none">🍂</div>
               <h3 className="font-serif text-2xl text-ink-800 mb-2">
-                {(filters.smellType || filters.season || filters.emotion)
+                {filtersActive
                   ? '没有匹配的气味记忆'
                   : '还没有封存任何气味'}
               </h3>
               <p className="text-ink-700/60 max-w-md mx-auto mb-6">
-                {(filters.smellType || filters.season || filters.emotion)
+                {filtersActive
                   ? '换一组筛选条件试试？或者先封存一段新的气味'
                   : '空气中一定有让你难忘的味道——无论是衣柜里的樟木香，还是雨后操场的青草气'}
               </p>
@@ -108,7 +120,7 @@ export default function Home() {
                 <button onClick={openAddModal} className="btn-primary">
                   封存第一段气味
                 </button>
-                {(filters.smellType || filters.season || filters.emotion) && (
+                {filtersActive && (
                   <button onClick={resetFilters} className="btn-secondary">
                     清除筛选条件
                   </button>
@@ -121,11 +133,13 @@ export default function Home() {
                 <div key={m.id} data-memory-id={m.id}>
                   <MemoryCard
                     memory={m}
+                    memories={memories}
                     index={idx}
                     isExpanded={expandedId === m.id}
                     onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                     onEdit={() => openEditModal(m)}
                     onDelete={() => handleDelete(m.id)}
+                    onJump={scrollToCard}
                   />
                 </div>
               ))}
@@ -143,6 +157,7 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         editingData={editing}
+        memories={memories}
       />
     </div>
   );
